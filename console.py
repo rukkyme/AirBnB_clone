@@ -1,190 +1,460 @@
 #!/usr/bin/python3
-''' console module '''
+"""This module contains the entry point of the command interpreter"""
 import cmd
-import sys
 from models.base_model import BaseModel
-from models.engine.file_storage import FileStorage
-from models import storage
-import json
 from models.user import User
-from models.place import Place
 from models.state import State
 from models.city import City
 from models.amenity import Amenity
+from models.place import Place
 from models.review import Review
+from models import storage
+import shlex
+import re
 
 
 class HBNBCommand(cmd.Cmd):
-    ''' HBNB class contains entry point '''
+    """Defines command interpreter class"""
+    prompt = "(hbnb) "
 
-    prompt = '(hbnb) '
-    myclasses = ["BaseModel", "User", "Place", "State", "Amenity", "Review",
-                 "City"]
+    __models = {"BaseModel": BaseModel,
+                "User": User,
+                "State": State,
+                "City": City,
+                "Amenity": Amenity,
+                "Place": Place,
+                "Review": Review}
 
     def do_EOF(self, line):
-        ''' exit the program '''
+        """Handle EOF"""
+        print("")
         return True
 
-    def help_EOF(self):
-        ''' help EOF'''
-        print("EOF command to exit the program\n")
-
-    def help_quit(self):
-        ''' help quit '''
-        print("Quit command to exit the program\n")
-
-    def do_quit(self, arg):
-        ''' quit interpreter '''
+    def do_quit(self, line):
+        """Quit command to exit the program"""
         return True
 
     def emptyline(self):
-        ''' do nothing with empty line '''
+        """Disable repetition of last command when enter key is used"""
         pass
 
-    def do_create(self, classname):
-        ''' create a new instance of '''
-        if len(classname) == 0:
-            print('** class name missing **')
-        elif classname not in self.myclasses:
-                print('** class doesn\'t exist **')
-                return False
-        else:
-            new = eval("{}()".format(classname))
-            new.save()
-            print(new.id)
+    def do_create(self, line):
+        """Creates a new instance of BaseModel, saves it (to the JSON file)
+        and prints the id"""
+        arg = line.split()
 
-    def help_create(self):
-        ''' help create '''
-        print("Create command to create a class\n")
+        if len(arg) < 1:
+            print("** class name missing **")
+            return
+        elif arg[0] not in self.__models.keys():
+            print("** class doesn't exist **")
+            return
+        else:
+            class_string = arg[0]
+            for key, value in self.__models.items():
+                if class_string == key:
+                    newModel = value()
+            storage.new(newModel)
+            storage.save()
+            print(newModel.id)
 
     def do_show(self, line):
-        '''represents an instance'''
-        args = line.split()
-        if len(args) == 0:
-            print('** class name missing **')
-            return False
-        elif args[0] not in self.myclasses:
-            print('** class doesn\'t exist **')
-            return False
+        """Prints the string representation of an instance
+        based on the class name and id"""
+        arg = line.split()
 
-        if len(args) < 2:
+        if len(arg) < 1:
+            print("** class name missing **")
+            return
+        elif arg[0] not in self.__models.keys():
+            print("** class doesn't exist **")
+            return
+        elif len(arg) < 2:
             print('** instance id missing **')
-            return False
-
-        all_objs = storage.all()
-        for i in all_objs.keys():
-            if i == "{}.{}".format(args[0], args[1]):
-                print(all_objs[i])
-                return False
-        print('** no instance found **')
-
-    def help_show(self):
-        ''' help show '''
-        print("Show command to display the string representation of class\n")
+            return
+        class_string = arg[0]
+        model_dict = storage.all()
+        model_info = f"{class_string}.{arg[1]}"
+        if model_info not in model_dict:
+            print("** no instance found **")
+        else:
+            obj = model_dict[model_info]
+            print(obj)
 
     def do_destroy(self, line):
-        ''' deletes an instance based on the class id'''
-        args = line.split()
-        if len(line) == 0:
-            print('** class name missing **')
-            return False
-        elif args[0] not in self.myclasses:
-            print('** class doesn\'t exist **')
-            return False
-        elif len(args) < 2:
-            print('** instance id missing **')
-            return False
-        else:
-            all_objs = storage.all()
-            for i in all_objs:
-                if i == "{}.{}".format(args[0], args[1]):
-                    all_objs.pop(i)
-                    storage.save()
-                    return False
-            print('** no instance found **')
+        """Deletes an instance based on the class name and id"""
+        arg = line.split()
 
-    def help_destroy(self):
-        ''' help destroy '''
-        print("Destroy command to destroy an object\n")
+        if len(arg) < 1:
+            print("** class name missing **")
+            return
+        elif arg[0] not in self.__models.keys():
+            print("** class doesn't exist **")
+            return
+        elif len(arg) < 2:
+            print("** instance id missing **")
+            return
+        class_name = arg[0]
+        model_info = f"{class_name}.{arg[1]}"
+        model_dict = storage.all()
+        checkdict = model_dict.pop(model_info, None)
+        if not checkdict:
+            print("** no instance found **")
+        else:
+            storage.save()
 
     def do_all(self, line):
-        ''' prints all string representations of instances'''
+        """Prints all string representation of all
+        instances based or not on the class name"""
         args = line.split()
-        all_objs = storage.all()
-
-        if len(args) == 0:
-            for i in all_objs:
-                strarg = str(all_objs[i])
-                print(strarg)
-        elif line not in self.myclasses:
-            print('** class doesn\'t exist **')
-            return False
+        if args and args[0] not in self.__models:
+            print("** class doesn't exist **")
         else:
-            for i in all_objs:
-                if i.startswith(args[0]):
-                    strarg = str(all_objs[i])
-                    print(strarg)
-        return False
-
-    def help_all(self):
-        ''' help all'''
-        print("All command to show all instances\n")
+            objects = storage.all()
+            objlist = []
+            if args:
+                for obj in objects.values():
+                    if type(obj) == self.__models[args[0]]:
+                        objlist.append(str(obj))
+            else:
+                for obj in objects.values():
+                    objlist.append(str(obj))
+            print(objlist)
 
     def do_update(self, line):
-        ''' updates an instance based on class name and id'''
-        args = line.split()
-        flag = 0
-
-        if len(line) == 0:
-            print('** class name missing **')
-            return False
-
+        """Updates an instance based on the class name
+        and id by adding or updating attribute"""
+        arg = shlex.split(line)
+        if len(arg) < 1:
+            print("** class name missing **")
+            return
+        elif arg[0] not in self.__models.keys():
+            print("** class doesn't exist **")
+            return
+        elif len(arg) < 2:
+            print("** instance id missing **")
+            return
+        elif len(arg) < 3:
+            print("** attribute name missing **")
+            return
+        elif len(arg) < 4:
+            print("** value missing **")
+            return
+        class_string = arg[0]
+        class_id = arg[1]
+        attribute_name = arg[2]
         try:
-            clsname = line.split()[0]
-            eval("{}()".format(clsname))
-        except IndexError:
-            print('** class doesn\'t exist **')
-            return False
-
-        try:
-            instanceid = line.split()[1]
-        except IndexError:
-            print('** instance id missing **')
-            return False
-
-        all_objs = storage.all()
-        try:
-            clschange = all_objs["{}.{}".format(clsname, instanceid)]
-        except IndexError:
-            print('** no instance found **')
-            return False
-
-        try:
-            attributename = line.split()[2]
-        except IndexError:
-            print('** attribute name missing **')
-            return False
-
-        try:
-            updatevalue = line.split()[3]
-        except IndexError:
-            print('** value missing **')
-            return False
-
-        if updatevalue.isdecimal() is True:
-            setattr(clschange, attributename, int(updatevalue))
-            storage.save()
-        else:
+            attribute_value = int(arg[3])
+        except Exception:
             try:
-                setattr(clschange, attributename, float(updatevalue))
-                storage.save()
-            except:
-                setattr(clschange, attributename, str(updatevalue))
-                storage.save()
+                attribute_value = float(arg[3])
+            except Exception:
+                attribute_value = str(arg[3]).strip('\'"')
+        objects = storage.all()
 
-    def help_update(self):
-        '''help update'''
-        print("update command to update attributes\n")
+        model_info = f"{class_string}.{class_id}"
+        if model_info not in objects:
+            print("** no instance found **")
+        else:
+            obj = objects[model_info]
+            setattr(obj, attribute_name, attribute_value)
+
+            obj.save()
+
+    def do_BaseModel(self, line):
+        if line == ".all()":
+            return self.do_all("BaseModel")
+        # ':=' is called the walrus operator
+        # It returns the value assigned to it
+        # but '=' doesn't do so
+        # ':=' provides a way to assign variables inside expressions
+        # since '=' can't do so
+        # '=' operator will raise an error if u try to use it here
+        if x := re.findall('.show\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_show(f"BaseModel {x[0]}")
+        if x := re.findall('.destroy\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_destroy(f"BaseModel {x[0]}")
+        if line == ".count()":
+            count = 0
+            # check for objects of specified type in storage
+            for obj in storage.all().values():
+                if isinstance(obj, BaseModel):
+                    count += 1
+            print(count)
+            return
+        if x := re.findall('.update\("(.*?)", "(.*?)", (.*?)\)', line):
+            # Retrieves a tuple containing all captured items
+            # And stores the tuple in a list
+            return self.do_update(f"BaseModel {' '.join(x[0])}")
+
+        #       Alternate solution
+        # if x := re.findall(".update\((.*?)\)", line):
+        #    argstring = x[0].strip('\'')
+        #    args = argstring.split(', ')
+        #    do_update_argstring = f"BaseModel {' '.join(args)}"
+        #    return self.do_update(do_update_argstring)
+
+        if x := re.findall('.update\("(.*?)", (.*?)\)', line):
+            obj_id = x[0][0]
+            obj_dict = eval(x[0][1])
+            for key, value in obj_dict.items():
+                u_str = f"BaseModel {obj_id} {key} {value}"
+                self.do_update(u_str)
+
+    def do_User(self, line):
+        if line == ".all()":
+            return self.do_all("User")
+        # ':=' is called the walrus operator
+        # It returns the value assigned to it
+        # but '=' doesn't do so
+        # ':=' provides a way to assign variables inside expressions
+        # since '=' can't do so
+        # '=' operator will raise an error if u try to use it here
+        if x := re.findall('.show\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_show(f"User {x[0]}")
+        if x := re.findall('.destroy\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_destroy(f"User {x[0]}")
+        if line == ".count()":
+            count = 0
+            # check for objects of specified type in storage
+            for obj in storage.all().values():
+                if isinstance(obj, User):
+                    count += 1
+            print(count)
+            return
+        if x := re.findall('.update\("(.*?)", "(.*?)", (.*?)\)', line):
+            # Retrieves a tuple containing all captured items
+            # And stores the tuple in a list
+            return self.do_update(f"User {' '.join(x[0])}")
+
+        #       Alternate solution
+        # if x := re.findall(".update\((.*?)\)", line):
+        #    argstring = x[0].strip('\'')
+        #    args = argstring.split(', ')
+        #    do_update_argstring = f"User {' '.join(args)}"
+        #    return self.do_update(do_update_argstring)
+
+        if x := re.findall('.update\("(.*?)", (.*?)\)', line):
+            obj_id = x[0][0]
+            obj_dict = eval(x[0][1])
+            for key, value in obj_dict.items():
+                u_str = f"User {obj_id} {key} {value}"
+                self.do_update(u_str)
+
+    def do_State(self, line):
+
+        if line == ".all()":
+            return self.do_all("State")
+        # ':=' is called the walrus operator
+        # It returns the value assigned to it
+        # but '=' doesn't do so
+        # ':=' provides a way to assign variables inside expressions
+        # since '=' can't do so
+        # '=' operator will raise an error if u try to use it here
+        if x := re.findall('.show\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_show(f"State {x[0]}")
+        if x := re.findall('.destroy\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_destroy(f"State {x[0]}")
+        if line == ".count()":
+            count = 0
+            # check for objects of specified type in storage
+            for obj in storage.all().values():
+                if isinstance(obj, State):
+                    count += 1
+            print(count)
+            return
+        if x := re.findall('.update\("(.*?)", "(.*?)", (.*?)\)', line):
+            # Retrieves a tuple containing all captured items
+            # And stores the tuple in a list
+            return self.do_update(f"State {' '.join(x[0])}")
+
+        #       Alternate solution
+        # if x := re.findall(".update\((.*?)\)", line):
+        #    argstring = x[0].strip('\'')
+        #    args = argstring.split(', ')
+        #    do_update_argstring = f"State {' '.join(args)}"
+        #    return self.do_update(do_update_argstring)
+
+        if x := re.findall('.update\("(.*?)", (.*?)\)', line):
+            obj_id = x[0][0]
+            obj_dict = eval(x[0][1])
+            for key, value in obj_dict.items():
+                u_str = f"State {obj_id} {key} {value}"
+                self.do_update(u_str)
+
+    def do_City(self, line):
+        if line == ".all()":
+            return self.do_all("City")
+        # ':=' is called the walrus operator
+        # It returns the value assigned to it
+        # but '=' doesn't do so
+        # ':=' provides a way to assign variables inside expressions
+        # since '=' can't do so
+        # '=' operator will raise an error if u try to use it here
+        if x := re.findall('.show\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_show(f"City {x[0]}")
+        if x := re.findall('.destroy\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_destroy(f"City {x[0]}")
+        if line == ".count()":
+            count = 0
+            # check for objects of specified type in storage
+            for obj in storage.all().values():
+                if isinstance(obj, City):
+                    count += 1
+            print(count)
+            return
+        if x := re.findall('.update\("(.*?)", "(.*?)", (.*?)\)', line):
+            # Retrieves a tuple containing all captured items
+            # And stores the tuple in a list
+            return self.do_update(f"City {' '.join(x[0])}")
+
+        #       Alternate solution
+        # if x := re.findall(".update\((.*?)\)", line):
+        #    argstring = x[0].strip('\'')
+        #    args = argstring.split(', ')
+        #    do_update_argstring = f"City {' '.join(args)}"
+        #    return self.do_update(do_update_argstring)
+
+        if x := re.findall('.update\("(.*?)", (.*?)\)', line):
+            obj_id = x[0][0]
+            obj_dict = eval(x[0][1])
+            for key, value in obj_dict.items():
+                u_str = f"City {obj_id} {key} {value}"
+                self.do_update(u_str)
+
+    def do_Amenity(self, line):
+        if line == ".all()":
+            return self.do_all("Amenity")
+        # ':=' is called the walrus operator
+        # It returns the value assigned to it
+        # but '=' doesn't do so
+        # ':=' provides a way to assign variables inside expressions
+        # since '=' can't do so
+        # '=' operator will raise an error if u try to use it here
+        if x := re.findall('.show\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_show(f"Amenity {x[0]}")
+        if x := re.findall('.destroy\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_destroy(f"Amenity {x[0]}")
+        if line == ".count()":
+            count = 0
+            # check for objects of specified type in storage
+            for obj in storage.all().values():
+                if isinstance(obj, Amenity):
+                    count += 1
+            print(count)
+            return
+        if x := re.findall('.update\("(.*?)", "(.*?)", (.*?)\)', line):
+            # Retrieves a tuple containing all captured items
+            # And stores the tuple in a list
+            return self.do_update(f"Amenity {' '.join(x[0])}")
+
+        #       Alternate solution
+        # if x := re.findall(".update\((.*?)\)", line):
+        #    argstring = x[0].strip('\'')
+        #    args = argstring.split(', ')
+        #    do_update_argstring = f"Amenity {' '.join(args)}"
+        #    return self.do_update(do_update_argstring)
+
+        if x := re.findall('.update\("(.*?)", (.*?)\)', line):
+            obj_id = x[0][0]
+            obj_dict = eval(x[0][1])
+            for key, value in obj_dict.items():
+                u_str = f"Amenity {obj_id} {key} {value}"
+                self.do_update(u_str)
+
+    def do_Place(self, line):
+        if line == ".all()":
+            return self.do_all("Place")
+        # ':=' is called the walrus operator
+        # It returns the value assigned to it
+        # but '=' doesn't do so
+        # ':=' provides a way to assign variables inside expressions
+        # since '=' can't do so
+        # '=' operator will raise an error if u try to use it here
+        if x := re.findall('.show\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_show(f"Place {x[0]}")
+        if x := re.findall('.destroy\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_destroy(f"Place {x[0]}")
+        if line == ".count()":
+            count = 0
+            # check for objects of specified type in storage
+            for obj in storage.all().values():
+                if isinstance(obj, Place):
+                    count += 1
+            print(count)
+            return
+        if x := re.findall('.update\("(.*?)", "(.*?)", (.*?)\)', line):
+            # Retrieves a tuple containing all captured items
+            # And stores the tuple in a list
+            return self.do_update(f"Place {' '.join(x[0])}")
+
+        #       Alternate solution
+        # if x := re.findall(".update\((.*?)\)", line):
+        #    argstring = x[0].strip('\'')
+        #    args = argstring.split(', ')
+        #    do_update_argstring = f"Place {' '.join(args)}"
+        #    return self.do_update(do_update_argstring)
+
+        if x := re.findall('.update\("(.*?)", (.*?)\)', line):
+            obj_id = x[0][0]
+            obj_dict = eval(x[0][1])
+            for key, value in obj_dict.items():
+                u_str = f"Place {obj_id} {key} {value}"
+                self.do_update(u_str)
+
+    def do_Review(self, line):
+        if line == ".all()":
+            return self.do_all("Review")
+        # ':=' is called the walrus operator
+        # It returns the value assigned to it
+        # but '=' doesn't do so
+        # ':=' provides a way to assign variables inside expressions
+        # since '=' can't do so
+        # '=' operator will raise an error if u try to use it here
+        if x := re.findall('.show\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_show(f"Review {x[0]}")
+        if x := re.findall('.destroy\("(.*?)"\)', line):
+            print(x[0])
+            return self.do_destroy(f"Review {x[0]}")
+        if line == ".count()":
+            count = 0
+            # check for objects of specified type in storage
+            for obj in storage.all().values():
+                if isinstance(obj, Review):
+                    count += 1
+            print(count)
+            return
+        if x := re.findall('.update\("(.*?)", "(.*?)", (.*?)\)', line):
+            # Retrieves a tuple containing all captured items
+            # And stores the tuple in a list
+            return self.do_update(f"Review {' '.join(x[0])}")
+
+        #       Alternate solution
+        # if x := re.findall(".update\((.*?)\)", line):
+        #    argstring = x[0].strip('\'')
+        #    args = argstring.split(', ')
+        #    do_update_argstring = f"Review {' '.join(args)}"
+        #    return self.do_update(do_update_argstring)
+
+        if x := re.findall('.update\("(.*?)", (.*?)\)', line):
+            obj_id = x[0][0]
+            obj_dict = eval(x[0][1])
+            for key, value in obj_dict.items():
+                u_str = f"Review {obj_id} {key} {value}"
+                self.do_update(u_str)
 
 
 if __name__ == '__main__':

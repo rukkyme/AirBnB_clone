@@ -1,53 +1,48 @@
 #!/usr/bin/python3
-''' module for BaseModel class '''
-from datetime import datetime
+"""BaseModel module"""
 import uuid
-import models
+from datetime import datetime
+from models import storage
 
 
 class BaseModel:
-    ''' BaseModel class '''
+    """defines all common attributes/methods
+    for other classes"""
+
     def __init__(self, *args, **kwargs):
-        '''
-        initation of basemodel
-
-        Args:
-        *args: arguments passed in
-        **kwargs: arguments with key values
-
-        Return:
-        None
-        '''
-        if len(kwargs) != 0:
-            self.__dict__ = kwargs
-            self.created_at = datetime.strptime(self.created_at,
-                                                "%Y-%m-%dT%H:%M:%S.%f")
-            self.updated_at = datetime.strptime(self.updated_at,
-                                                "%Y-%m-%dT%H:%M:%S.%f")
+        """Initialise new instances"""
+        if kwargs:
+            for key, value in kwargs.items():
+                if key != '__class__':
+                    if key == 'created_at':
+                        value = datetime.fromisoformat(value)
+                        setattr(self, key, value)
+                        continue
+                    if key == 'updated_at':
+                        value = datetime.fromisoformat(value)
+                        setattr(self, key, value)
+                        continue
+                    setattr(self, key, value)
         else:
             self.id = str(uuid.uuid4())
-            self.created_at = datetime.now()
-            self.updated_at = datetime.now()
-            models.storage.new(self)
+            self.created_at = datetime.today()
+            self.updated_at = datetime.today()
+            storage.new(self)
 
     def __str__(self):
-        '''
-        Return:
-        string represntation fo object
-        '''
-        return '[{}] ({}) {}'.format(self.__class__.__name__,
-                                     self.id, self.__dict__)
+        """Return object in string format"""
+        return f"[{self.__class__.__name__}] ({self.id}) {self.__dict__}"
 
     def save(self):
-        ''' updates date for updated_at attribute '''
-        self.updated_at = datetime.now()
-        models.storage.save()
+        """Save objects"""
+        self.updated_at = datetime.today()
+        storage.save()
 
     def to_dict(self):
-        ''' returns dictonary with all key values of instance '''
-        mydict = self.__dict__.copy()
-        mydict['__class__'] = self.__class__.__name__
-        mydict['created_at'] = self.created_at.isoformat()
-        mydict['updated_at'] = self.updated_at.isoformat()
-
-        return mydict
+        """convert object to dict"""
+        objdict = dict(self.__dict__)
+        objdict['id'] = self.id
+        objdict['created_at'] = self.created_at.isoformat()
+        objdict['updated_at'] = self.updated_at.isoformat()
+        objdict['__class__'] = self.__class__.__name__
+        return objdict

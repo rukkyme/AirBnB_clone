@@ -1,62 +1,92 @@
 #!/usr/bin/python3
-import unittest
-import pep8
-import json
-import os
-from datetime import datetime
 from models.base_model import BaseModel
-
-
-class TestBaseModelDocs(unittest.TestCase):
-    """ check for documentation """
-    def test_class_doc(self):
-        """ check for class documentation """
-        self.assertTrue(len(BaseModel.__doc__) > 0)
-
-    def test_method_docs(self):
-        """ check for method documentation """
-        for func in dir(BaseModel):
-            self.assertTrue(len(func.__doc__) > 0)
-
-
-class TestBaseModelPep8(unittest.TestCase):
-    """ check for pep8 validation """
-    def test_pep8(self):
-        """ test base and test_base for pep8 conformance """
-        style = pep8.StyleGuide(quiet=True)
-        file1 = 'models/base_model.py'
-        file2 = 'tests/test_models/test_base_model.py'
-        result = style.check_files([file1, file2])
-        self.assertEqual(result.total_errors, 0,
-                         "Found code style errors (and warning).")
+from models.engine.file_storage import FileStorage
+import unittest
+from datetime import datetime
+"""Tests the BaseModels"""
 
 
 class TestBaseModel(unittest.TestCase):
-    """ tests for class BaseModel """
-    @classmethod
-    def setUpClass(cls):
-        """ set up instances for all tests """
-        cls.basemodel = BaseModel()
+    """Tests for BaseModel"""
+
+    def setUp(self):
+        """Sets up test methods"""
+        self.b = BaseModel()
+
+    def test_init(self):
+        """Tests the creation of
+        an instance of BaseModel"""
+        b1 = BaseModel()
+        self.assertIsInstance(b1, BaseModel)
+        self.assertTrue(b1.id)
+        self.assertTrue(b1.created_at)
+        self.assertTrue(b1.updated_at)
 
     def test_id(self):
-        """ test id """
-        self.assertEqual(str, type(self.basemodel.id))
+        """Tests the id of the BaseModel instance"""
+        b1 = BaseModel()
+        self.assertIsInstance(b1.id, str)
+        self.assertEqual(len(b1.id), 36)
+
+    def test_unique_id(self):
+        """Test if id is unique"""
+        b1 = BaseModel()
+        b2 = BaseModel()
+        self.assertNotEqual(b1.id, b2.id)
 
     def test_created_at(self):
-        """ test created_at """
-        self.assertEqual(datetime, type(self.basemodel.created_at))
+        """Tests the created_at 
+        attribute of the BaseModel instance"""
+        b1 = BaseModel()
+        b2 = BaseModel()
+        self.assertIsInstance(b1.created_at, datetime)
+        self.assertIsInstance(b2.created_at, datetime)
+        self.assertNotEqual(b1.created_at, b2.created_at)
 
     def test_updated_at(self):
-        """ test updated_at """
-        self.assertEqual(datetime, type(self.basemodel.updated_at))
+        """test updated_at"""
+        self.assertIsInstance(self.b.updated_at, datetime)
+        previous_update = self.b.created_at
+        self.b.name = "betty"
+        self.assertNotEqual(previous_update, self.b.updated_at)
+
+    def test_kwargs(self):
+        """test kwargs"""
+        objdict = self.b.to_dict()
+        b1 = BaseModel(**objdict)
+        self.assertEqual(b1.id, self.b.id)
+        self.assertIsNot(b1, self.b)
+
+    def test___str__(self):
+        """Test str method"""
+        b1 = BaseModel()
+        self.assertIsInstance(b1.__str__(), str)
+
+    def test_save(self):
+        """Tests the save method of
+        the BaseModel instance"""
+        b1 = BaseModel()
+        # b1.id = 1
+        b1.save()
+        storage = FileStorage()
+        obj = storage.all()
+        key = f"{b1.__class__.__name__}.{b1.id}"
+
+        self.assertIs(b1, obj[key])
 
     def test_to_dict(self):
-        """ test to_dict method """
-        new_dict = self.basemodel.to_dict()
-        self.assertEqual(type(new_dict), dict)
-        self.assertTrue('to_dict' in dir(self.basemodel))
+        """Tests the to_dict method of the BaseModel instance"""
+        bm_dict = self.b.to_dict()
+        self.assertEqual(type(bm_dict), dict)
+        self.assertEqual(bm_dict['__class__'], 'BaseModel')
+        self.assertEqual(type(bm_dict['created_at']), str)
+        self.assertEqual(type(bm_dict['updated_at']), str)
+        self.assertEqual(bm_dict['id'], self.b.id)
+        self.assertEqual(bm_dict['created_at'],
+                         datetime.isoformat(self.b.created_at))
+        self.assertEqual(bm_dict['updated_at'],
+                         datetime.isoformat(self.b.updated_at))
 
-    @classmethod
-    def tearDownClass(cls):
-        """ remove test instances """
-        pass
+
+if __name__ == '__main__':
+    unittest.main()

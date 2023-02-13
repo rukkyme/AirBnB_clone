@@ -1,76 +1,57 @@
 #!/usr/bin/python3
+"""tests for class amenity"""
 import unittest
-import pep8
-import json
 import os
-from datetime import datetime
-from models.base_model import BaseModel
-from models.user import User
-from models.state import State
-from models.city import City
 from models.amenity import Amenity
-from models.place import Place
-from models.review import Review
-from models.engine.file_storage import FileStorage
-
-
-class TestAmenityDocs(unittest.TestCase):
-    """ check for documentation """
-    def test_class_doc(self):
-        """ check for class documentation """
-        self.assertTrue(len(Amenity.__doc__) > 0)
-
-
-class TestAmenityPep8(unittest.TestCase):
-    """ check for pep8 validation """
-    def test_pep8(self):
-        """ test base and test_base for pep8 conformance """
-        style = pep8.StyleGuide(quiet=True)
-        file1 = 'models/amenity.py'
-        file2 = 'tests/test_models/test_amenity.py'
-        result = style.check_files([file1, file2])
-        self.assertEqual(result.total_errors, 0,
-                         "Found code style errors (and warning).")
+from models.base_model import BaseModel
+import pep8
 
 
 class TestAmenity(unittest.TestCase):
-    """ tests for class Amenity """
+    """this will test the Amenity class"""
+
     @classmethod
     def setUpClass(cls):
-        """ set up instances for all tests """
-        cls.amenity = Amenity()
-
-    def test_subclass(self):
-        """ test that amenity is a subclass of basemodel """
-        self.assertIsInstance(self.amenity, BaseModel)
-        self.assertTrue(hasattr(self.amenity, "id"))
-        self.assertTrue(hasattr(self.amenity, "created_at"))
-        self.assertTrue(hasattr(self.amenity, "updated_at"))
-
-    def test_id(self):
-        """ test id """
-        self.assertEqual(str, type(self.amenity.id))
-
-    def test_created_at(self):
-        """ test created_at """
-        self.assertEqual(datetime, type(self.amenity.created_at))
-
-    def test_updated_at(self):
-        """ test updated_at """
-        self.assertEqual(datetime, type(self.amenity.updated_at))
-
-    def test_name(self):
-        """ test name """
-        self.assertTrue(hasattr(self.amenity, "name"))
-        self.assertEqual(self.amenity.name, "")
-
-    def test_to_dict(self):
-        """ test to_dict method """
-        new_dict = self.amenity.to_dict()
-        self.assertEqual(type(new_dict), dict)
-        self.assertTrue('to_dict' in dir(self.amenity))
+        """set up for test"""
+        cls.lord = Amenity()
+        cls.lord.name = "Breakfast"
 
     @classmethod
-    def tearDownClass(cls):
-        """ remove test instances """
-        pass
+    def teardown(cls):
+        """at the end of the test this will tear it down"""
+        del cls.lord
+
+    def tearDown(self):
+        """teardown"""
+        try:
+            os.remove("file.json")
+        except:
+            pass
+
+    def test_attr_Amen(self):
+        """checking if amenity have attibutes"""
+        self.assertTrue('id' in self.lord.__dict__)
+        self.assertTrue('created_at' in self.lord.__dict__)
+        self.assertTrue('updated_at' in self.lord.__dict__)
+        self.assertTrue('name' in self.lord.__dict__)
+
+    def test_inheritance_Amen(self):
+        """test if inheritance works"""
+        self.assertTrue(issubclass(self.lord.__class__, BaseModel), True)
+
+    def test_attrtype_Amen(self):
+        """test attr types in instance"""
+        self.assertEqual(type(self.lord.name), str)
+
+    def test_save(self):
+        """test the save function"""
+        self.lord.save()
+        self.assertNotEqual(self.lord.created_at, self.lord.updated_at)
+
+    def test_to_dict(self):
+        """test if dictionary function works"""
+        self.assertEqual('to_dict' in dir(self.lord), True)
+
+
+if __name__ == "__main__":
+    unittest.main()
